@@ -26,12 +26,19 @@ public sealed class BrotherPtPrinter : IDisposable
         if (!string.IsNullOrWhiteSpace(printerNameOrNull))
         {
             var type = _doc.GetType();
-            type.InvokeMember(
-                "Printer",
-                BindingFlags.SetProperty,
-                null,
-                _doc,
-                new object[] { printerNameOrNull });
+            try
+            {
+                type.InvokeMember(
+                    "Printer",
+                    BindingFlags.SetProperty,
+                    null,
+                    _doc,
+                    new object[] { printerNameOrNull });
+            }
+            catch (TargetInvocationException tie)
+            {
+                throw tie.InnerException ?? tie;
+            }
         }
     }
 
@@ -43,9 +50,64 @@ public sealed class BrotherPtPrinter : IDisposable
         obj.Text = text ?? "";
     }
 
-    public void StartPrint() => _doc?.StartPrint("", BpoDefault);
-    public void PrintCopies(int copies) => _doc?.PrintOut(Math.Max(0, copies), BpoDefault);
-    public void EndPrint() => _doc?.EndPrint();
+    public void StartPrint()
+    {
+        if (_doc == null) throw new InvalidOperationException("Vorher OpenTemplate aufrufen.");
+        var type = _doc.GetType();
+        try
+        {
+            var ok = (bool)type.InvokeMember(
+                "StartPrint",
+                BindingFlags.InvokeMethod,
+                null,
+                _doc,
+                new object[] { "", BpoDefault });
+            if (!ok)
+                throw new InvalidOperationException("StartPrint meldete Fehler.");
+        }
+        catch (TargetInvocationException tie)
+        {
+            throw tie.InnerException ?? tie;
+        }
+    }
+
+    public void PrintCopies(int copies)
+    {
+        if (_doc == null) throw new InvalidOperationException("Vorher OpenTemplate aufrufen.");
+        var type = _doc.GetType();
+        try
+        {
+            type.InvokeMember(
+                "PrintOut",
+                BindingFlags.InvokeMethod,
+                null,
+                _doc,
+                new object[] { Math.Max(0, copies), BpoDefault });
+        }
+        catch (TargetInvocationException tie)
+        {
+            throw tie.InnerException ?? tie;
+        }
+    }
+
+    public void EndPrint()
+    {
+        if (_doc == null) return;
+        var type = _doc.GetType();
+        try
+        {
+            type.InvokeMember(
+                "EndPrint",
+                BindingFlags.InvokeMethod,
+                null,
+                _doc,
+                Array.Empty<object>());
+        }
+        catch (TargetInvocationException tie)
+        {
+            throw tie.InnerException ?? tie;
+        }
+    }
 
     public void Close()
     {
