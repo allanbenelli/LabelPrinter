@@ -1,4 +1,4 @@
-using System.Net;
+using System.Reflection;
 
 namespace LabelPrinter.Services;
 
@@ -24,7 +24,15 @@ public sealed class BrotherPtPrinter : IDisposable
     {
         if (_doc == null) throw new InvalidOperationException("Vorher OpenTemplate aufrufen.");
         if (!string.IsNullOrWhiteSpace(printerNameOrNull))
-            _doc.Printer = printerNameOrNull;
+        {
+            var type = _doc.GetType();
+            type.InvokeMember(
+                "Printer",
+                BindingFlags.SetProperty,
+                null,
+                _doc,
+                new object[] { printerNameOrNull });
+        }
     }
 
     public void SetField(string objectName, string text)
