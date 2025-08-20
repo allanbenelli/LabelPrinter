@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using LabelPrinter.Models;
 
 namespace LabelPrinter.Services;
@@ -33,6 +34,29 @@ public sealed class MappingResolver
 
     public string? GetLogicalByHeader(string header)
         => _headerToLogical.TryGetValue(header, out var logical) ? logical : null;
+
+    public string GetString(ExcelRow row, string logical)
+    {
+        if (_cfg.ColumnAliases.TryGetValue(logical, out var aliases))
+        {
+            foreach (var alias in aliases)
+            {
+                if (row.Cells.TryGetValue(alias, out var val))
+                {
+                    var s = val?.ToString()?.Trim();
+                    if (!string.IsNullOrEmpty(s))
+                        return s;
+                }
+            }
+        }
+
+        var header = row.Cells.Keys.FirstOrDefault(h =>
+            string.Equals(GetLogicalByHeader(h), logical, StringComparison.OrdinalIgnoreCase));
+        if (header != null && row.Cells.TryGetValue(header, out var fallback) && fallback != null)
+            return fallback.ToString() ?? string.Empty;
+
+        return string.Empty;
+    }
 
     public static string NormalizeEan(string? raw)
     {
@@ -70,9 +94,20 @@ public sealed class MappingResolver
 
     public static string FormatPrice(object? value, string decimalSep = ",")
     {
-        if (value == null) return "";
-        if (value is double d) return d.ToString($"0.00", new CultureInfo(decimalSep == "," ? "de-CH" : "en-US"));
-        var s = value.ToString()!.Trim();
+        if (value == null) return string.Empty;
+
+        var culture = new CultureInfo(decimalSep == "," ? "de-CH" : "en-US");
+
+        if (value is double d)
+            return d.ToString("0.00", culture);
+
+        var s = value.ToString()?.Trim();
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+
+        s = s.Replace(decimalSep == "," ? "." : ",", decimalSep);
+        if (decimal.TryParse(s, NumberStyles.Any, culture, out var dec))
+            return dec.ToString("0.00", culture);
+
         return s;
     }
 }
