@@ -187,12 +187,7 @@ public class MainForm : Form
             pt.SelectPrinter(printerName);
             pt.StartPrint();
 
-            string get(string logical)
-            {
-                var header = headers.FirstOrDefault(h => string.Equals(map.GetLogicalByHeader(h), logical, StringComparison.OrdinalIgnoreCase));
-                if (header == null) return "";
-                return _currentRow!.Cells.TryGetValue(header, out var v) ? v?.ToString() ?? "" : "";
-            }
+            string get(string logical) => map.GetString(_currentRow!, logical);
 
             foreach (var row in rows)
             {
