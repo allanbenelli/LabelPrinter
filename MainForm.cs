@@ -186,8 +186,6 @@ public class MainForm : Form
                     continue;
 
                 int copies = map.ParseCopies(get("menge"), _cfg.Defaults.CopiesIfMissing);
-                if (copies <= 0)
-                    continue;
 
                 var name   = get("text");
                 var beschr = get("beschreibung");
@@ -205,6 +203,12 @@ public class MainForm : Form
                     _status.Text = "Abgebrochen.";
                     return;
                 }
+
+                var itemMap = items.ToDictionary(i => i.Artikel);
+                items = preview.Items
+                    .Where(p => itemMap.ContainsKey(p.Artikelnummer))
+                    .Select(p => itemMap[p.Artikelnummer] with { Preis = p.Preis, Copies = p.Menge })
+                    .ToList();
             }
 
             _status.Text = "Starte Druck…";
@@ -217,16 +221,19 @@ public class MainForm : Form
 
             foreach (var item in items)
             {
+                if (item.Copies <= 0)
+                    continue;
+                    
                 foreach (var kv in ti.Template.ObjectMap)
                 {
                     var value = kv.Key switch
                     {
                         "artikelnummer" => item.Artikel,
-                        "text"          => item.Name,
-                        "beschreibung"  => item.Beschreibung,
-                        "preis"         => item.Preis,
-                        "ean"           => item.Ean,
-                        _               => "",
+                        "text" => item.Name,
+                        "beschreibung" => item.Beschreibung,
+                        "preis" => item.Preis,
+                        "ean" => item.Ean,
+                        _ => "",
                     };
                     if (!string.IsNullOrEmpty(kv.Value))
                         pt.SetField(kv.Value, value);

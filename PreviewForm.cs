@@ -1,13 +1,19 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace LabelPrinter;
 
 public sealed class PreviewForm : Form
 {
-    public PreviewForm(List<PreviewItem> items)
+    public BindingList<PreviewItem> Items { get; }
+
+    public PreviewForm(IEnumerable<PreviewItem> items)
     {
+        Items = new BindingList<PreviewItem>(items.ToList());
+
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 10f);
         Text = "Druckvorschau";
@@ -19,16 +25,20 @@ public sealed class PreviewForm : Form
         var grid = new DataGridView
         {
             Dock = DockStyle.Fill,
-            ReadOnly = true,
+            ReadOnly = false,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
+            AllowUserToDeleteRows = true,
             AllowUserToResizeRows = false,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowHeadersVisible = false,
-            DataSource = items
+            DataSource = Items
         };
+        grid.DataBindingComplete += (_, __) =>
+            grid.Columns[nameof(PreviewItem.Artikelnummer)].ReadOnly = true;
 
         var btnPrint = new Button { Text = "Drucken", DialogResult = DialogResult.OK, AutoSize = true, Margin = new Padding(12,0,0,0) };
+        btnPrint.Click += (_, __) => grid.EndEdit();
         var btnCancel = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, AutoSize = true };
 
         var buttons = new FlowLayoutPanel
@@ -48,5 +58,18 @@ public sealed class PreviewForm : Form
         CancelButton = btnCancel;
     }
 
-    public sealed record PreviewItem(string Artikelnummer, string Preis, int Menge);
+    public sealed class PreviewItem
+    {
+        public PreviewItem(string artikelnummer, string preis, int menge)
+        {
+            Artikelnummer = artikelnummer;
+            Preis = preis;
+            Menge = menge;
+        }
+
+        public string Artikelnummer { get; init; }
+        public string Preis { get; set; }
+        public int Menge { get; set; }
+    }
 }
+
