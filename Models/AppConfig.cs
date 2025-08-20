@@ -19,5 +19,5 @@ public sealed class Defaults
 {
     public string? SheetName { get; set; }
     public int CopiesIfMissing { get; set; } = 1;
-    public string? DecimalSeparator { get; set; } = ",";
+    public string? DecimalSeparator { get; set; } = ".";
 }

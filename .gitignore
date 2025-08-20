@@ -604,3 +604,4 @@ $RECYCLE.BIN/
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,csharp,visualstudio
+bin/Debug/net8.0-windows/appsettings.labels.json
