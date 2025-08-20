@@ -23,9 +23,16 @@ public sealed class BrotherPtPrinter : IDisposable
     public void SelectPrinter(string? printerNameOrNull)
     {
         if (_doc == null) throw new InvalidOperationException("Vorher OpenTemplate aufrufen.");
-        if (!string.IsNullOrWhiteSpace(printerNameOrNull))
-            _doc.Printer = printerNameOrNull;
+        if (string.IsNullOrWhiteSpace(printerNameOrNull)) return; // Vorlage/Drucker aus LBX verwenden
+
+        // b-PAC: SetPrinter(string printerName, bool saveToTemplate)
+        bool ok = _doc.SetPrinter(printerNameOrNull, false);
+        if (!ok)
+            throw new InvalidOperationException(
+                $"Drucker '{printerNameOrNull}' konnte nicht gesetzt werden. " +
+                "Stimmt der Name exakt mit 'Geräte & Drucker' überein und ist der Treiber installiert?");
     }
+
 
     public void SetField(string objectName, string text)
     {

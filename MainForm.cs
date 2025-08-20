@@ -27,8 +27,8 @@ public class MainForm : Form
         Text = "P-touch Excel Label Printer";
         StartPosition = FormStartPosition.CenterScreen;
         Padding = new Padding(12);
-        ClientSize = new Size(900, 320);
-        MinimumSize = new Size(760, 320);
+        ClientSize = new Size(900, 480);
+        MinimumSize = new Size(760, 480);
 
         // === Inputs (oben) =====================================================
         var inputs = new TableLayoutPanel
