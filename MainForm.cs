@@ -14,76 +14,103 @@ public class MainForm : Form
     private ComboBox _cmbPrinter = null!;
     private Button _btnBrowse = null!;
     private Button _btnPrint = null!;
-    private Label _lblStatus = null!;
+    private ToolStripStatusLabel _status = null!;
 
     private AppConfig _cfg = new();
+    private ExcelRow? _currentRow;
 
     public MainForm()
     {
-        // Fenster
-        AutoScaleMode = AutoScaleMode.Dpi;        // DPI-freundlich
-        StartPosition = FormStartPosition.CenterScreen;
+        // Fenster-Basics
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10f);
         Text = "P-touch Excel Label Printer";
-        MinimumSize = new Size(720, 300);
+        StartPosition = FormStartPosition.CenterScreen;
+        Padding = new Padding(12);
+        ClientSize = new Size(900, 320);
+        MinimumSize = new Size(760, 320);
 
-        // Hauptlayout: 3 Spalten (Label / Input / Button)
-        var table = new TableLayoutPanel
+        // === Inputs (oben) =====================================================
+        var inputs = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 4,
-            Padding = new Padding(12),
+            Dock = DockStyle.Top,     // NICHT füllen -> bleibt kompakt
             AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            Padding = new Padding(0, 0, 0, 8)
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));            // Label
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));       // Eingaben
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130f));      // Buttons rechts
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));                  // Excel
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));                  // Vorlage
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));                  // Drucker
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));                  // Status+Button
+        inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Label
+        inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // Eingabe
+        inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Button
+
+        // Zeilen: Excel / Vorlage / Drucker
+        inputs.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        inputs.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        inputs.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         // Excel
-        var lblExcel = new Label { Text = "Excel-Datei:", AutoSize = true, Anchor = AnchorStyles.Left };
-        _txtExcel = new TextBox { Dock = DockStyle.Fill };
-        _btnBrowse = new Button { Text = "Durchsuchen…" };
+        var lblExcel = new Label { Text = "Excel-Datei:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 12, 6) };
+        _txtExcel = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, PlaceholderText = "Pfad zur Excel-Datei…", Margin = new Padding(0, 2, 12, 2) };
+        _txtExcel.AllowDrop = true;
+        _txtExcel.DragEnter += (s, e) => { if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true) e.Effect = DragDropEffects.Copy; };
+        _txtExcel.DragDrop += (s, e) =>
+        {
+            if (e.Data?.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+                _txtExcel.Text = files[0];
+        };
+        _btnBrowse = new Button { Text = "Durchsuchen…", AutoSize = true, Margin = new Padding(0, 0, 0, 0) };
         _btnBrowse.Click += (_, __) => BrowseExcel();
 
+        inputs.Controls.Add(lblExcel,   0, 0);
+        inputs.Controls.Add(_txtExcel,  1, 0);
+        inputs.Controls.Add(_btnBrowse, 2, 0);
+
         // Vorlage
-        var lblTemplate = new Label { Text = "Vorlage:", AutoSize = true, Anchor = AnchorStyles.Left };
-        _cmbTemplate = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        var lblTemplate = new Label { Text = "Vorlage:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 12, 6) };
+        _cmbTemplate = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, Margin = new Padding(0, 2, 12, 2) };
+        inputs.Controls.Add(lblTemplate,  0, 1);
+        inputs.Controls.Add(_cmbTemplate, 1, 1);
+        inputs.Controls.Add(new Panel { Width = 1 }, 2, 1); // Platzhalter
 
         // Drucker
-        var lblPrinter = new Label { Text = "Drucker:", AutoSize = true, Anchor = AnchorStyles.Left };
-        _cmbPrinter = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        var lblPrinter = new Label { Text = "Drucker:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 12, 6) };
+        _cmbPrinter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, Margin = new Padding(0, 2, 12, 2) };
+        inputs.Controls.Add(lblPrinter,  0, 2);
+        inputs.Controls.Add(_cmbPrinter, 1, 2);
+        inputs.Controls.Add(new Panel { Width = 1 }, 2, 2);
 
-        // Status + Drucken
-        _lblStatus = new Label { Text = "Bereit.", AutoSize = true, Anchor = AnchorStyles.Left, AutoEllipsis = true };
-        _btnPrint = new Button { Text = "Drucken", Dock = DockStyle.Fill, Height = 34 };
+        Controls.Add(inputs);
+
+        // === Bottom-Bar: Status + Buttons =====================================
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(0, 8, 0, 0) };
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
+        };
+        _btnPrint = new Button
+        {
+            Text = "Drucken",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(16, 6, 16, 6),
+            Margin = new Padding(12, 0, 0, 0)
+        };
         _btnPrint.Click += async (_, __) => await PrintAsync();
         AcceptButton = _btnPrint;
+        buttons.Controls.Add(_btnPrint);
+        bottom.Controls.Add(buttons);
+        Controls.Add(bottom);
 
-        // In Tabelle einsetzen
-        table.Controls.Add(lblExcel,    0, 0);
-        table.Controls.Add(_txtExcel,   1, 0);
-        table.Controls.Add(_btnBrowse,  2, 0);
+        // Statusleiste
+        var strip = new StatusStrip { Dock = DockStyle.Bottom, SizingGrip = false };
+        _status = new ToolStripStatusLabel("Bereit.");
+        strip.Items.Add(_status);
+        Controls.Add(strip);
 
-        table.Controls.Add(lblTemplate, 0, 1);
-        table.Controls.Add(_cmbTemplate,1, 1);
-        table.Controls.Add(new Panel(){Dock=DockStyle.Fill}, 2, 1); // Platzhalter
-
-        table.Controls.Add(lblPrinter,  0, 2);
-        table.Controls.Add(_cmbPrinter, 1, 2);
-        table.Controls.Add(new Panel(){Dock=DockStyle.Fill}, 2, 2);
-
-        // Status über 2 Spalten, Drucken rechts
-        table.Controls.Add(_lblStatus,  0, 3);
-        table.SetColumnSpan(_lblStatus, 2);
-        table.Controls.Add(_btnPrint,   2, 3);
-
-        Controls.Add(table);
-
+        // Laden
         Load += (_, __) =>
         {
             LoadConfig();
@@ -95,17 +122,12 @@ public class MainForm : Form
     private void LoadConfig()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "appsettings.labels.json");
+        _cfg = File.Exists(path)
+            ? (JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new AppConfig())
+            : new AppConfig();
         if (!File.Exists(path))
-        {
-            MessageBox.Show($"Konfiguration fehlt:\n{path}", "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            _cfg = new AppConfig();
-            return;
-        }
-
-        _cfg = JsonSerializer.Deserialize<AppConfig>(
-            File.ReadAllText(path),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        ) ?? new AppConfig();
+            MessageBox.Show($"Konfiguration fehlt:\n{path}", "Hinweis", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void LoadTemplates()
@@ -113,47 +135,36 @@ public class MainForm : Form
         _cmbTemplate.Items.Clear();
         foreach (var t in _cfg.Templates)
             _cmbTemplate.Items.Add(new TemplateItem(t));
-        if (_cmbTemplate.Items.Count > 0)
-            _cmbTemplate.SelectedIndex = 0;
+        if (_cmbTemplate.Items.Count > 0) _cmbTemplate.SelectedIndex = 0;
     }
 
     private void LoadPrinters()
     {
         _cmbPrinter.Items.Clear();
-        string? defaultBrother = null;
-
+        string? brother = null;
         foreach (string p in PrinterSettings.InstalledPrinters)
         {
             _cmbPrinter.Items.Add(p);
-            if (defaultBrother == null && p.Contains("Brother", StringComparison.OrdinalIgnoreCase))
-                defaultBrother = p;
+            if (brother == null && p.Contains("Brother", StringComparison.OrdinalIgnoreCase))
+                brother = p;
         }
-
-        if (defaultBrother != null)
-            _cmbPrinter.SelectedItem = defaultBrother;
-        else if (_cmbPrinter.Items.Count > 0)
-            _cmbPrinter.SelectedIndex = 0;
+        if (brother != null) _cmbPrinter.SelectedItem = brother;
+        else if (_cmbPrinter.Items.Count > 0) _cmbPrinter.SelectedIndex = 0;
     }
 
     private void BrowseExcel()
     {
-        using var ofd = new OpenFileDialog
-        {
-            Filter = "Excel (*.xlsx;*.xls)|*.xlsx;*.xls|Alle Dateien (*.*)|*.*"
-        };
+        using var ofd = new OpenFileDialog { Filter = "Excel (*.xlsx;*.xls)|*.xlsx;*.xls|Alle Dateien (*.*)|*.*" };
         if (ofd.ShowDialog() == DialogResult.OK)
             _txtExcel.Text = ofd.FileName;
     }
-
-    // ---- Dein bestehendes PrintAsync() aus der letzten Version hier belassen ----
-    // (nur die bereits vorgeschlagenen Preis-/Copies-Zeilen mit get("preis")/get("menge") verwenden)
 
     private async Task PrintAsync()
     {
         try
         {
             _btnPrint.Enabled = false;
-            _lblStatus.Text = "Lese Excel…";
+            _status.Text = "Lese Excel…";
 
             var excelPath = _txtExcel.Text;
             if (string.IsNullOrWhiteSpace(excelPath) || !File.Exists(excelPath))
@@ -166,10 +177,9 @@ public class MainForm : Form
 
             var reader = new ExcelReader();
             var (headers, rows) = await Task.Run(() => reader.Read(excelPath, _cfg.Defaults.SheetName));
-
             var map = new MappingResolver(_cfg, headers);
 
-            _lblStatus.Text = "Starte Druck…";
+            _status.Text = "Starte Druck…";
             int totalLabels = 0;
 
             using var pt = new BrotherPtPrinter();
@@ -181,8 +191,7 @@ public class MainForm : Form
             {
                 var header = headers.FirstOrDefault(h => string.Equals(map.GetLogicalByHeader(h), logical, StringComparison.OrdinalIgnoreCase));
                 if (header == null) return "";
-                var rowObj = _currentRow!;
-                return rowObj.Cells.TryGetValue(header, out var v) ? v?.ToString() ?? "" : "";
+                return _currentRow!.Cells.TryGetValue(header, out var v) ? v?.ToString() ?? "" : "";
             }
 
             foreach (var row in rows)
@@ -219,21 +228,18 @@ public class MainForm : Form
             }
 
             pt.EndPrint();
-            _lblStatus.Text = $"Fertig. Gedruckte Etiketten: {totalLabels}";
+            _status.Text = $"Fertig. Gedruckte Etiketten: {totalLabels}";
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Druckfehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            _lblStatus.Text = "Fehler.";
+            _status.Text = "Fehler.";
         }
         finally
         {
             _btnPrint.Enabled = true;
         }
     }
-
-    // kleine Hilfe, um im get()-Lambda auf die aktuelle Zeile zugreifen zu können
-    private ExcelRow? _currentRow;
 
     private sealed record TemplateItem(TemplateConfig Template)
     {
