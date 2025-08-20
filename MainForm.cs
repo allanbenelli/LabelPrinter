@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.Text.Json;
 using System.Windows.Forms;
+using System.Linq;
 using LabelPrinter.Models;
 using LabelPrinter.Services;
 
@@ -17,18 +18,17 @@ public class MainForm : Form
     private ToolStripStatusLabel _status = null!;
 
     private AppConfig _cfg = new();
-    private ExcelRow? _currentRow;
 
     public MainForm()
     {
         // Fenster-Basics
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 10f);
-        Text = "P-touch Excel Label Printer";
+        Text = "Etikettendrucker Excel2P-Touch";
         StartPosition = FormStartPosition.CenterScreen;
         Padding = new Padding(12);
-        ClientSize = new Size(900, 480);
-        MinimumSize = new Size(760, 480);
+        ClientSize = new Size(900, 320);
+        MinimumSize = new Size(760, 320);
 
         // === Inputs (oben) =====================================================
         var inputs = new TableLayoutPanel
@@ -70,29 +70,27 @@ public class MainForm : Form
         _cmbTemplate = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, Margin = new Padding(0, 2, 12, 2) };
         inputs.Controls.Add(lblTemplate,  0, 1);
         inputs.Controls.Add(_cmbTemplate, 1, 1);
-        inputs.Controls.Add(new Panel { Width = 1 }, 2, 1); // Platzhalter
 
         // Drucker
         var lblPrinter = new Label { Text = "Drucker:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 12, 6) };
         _cmbPrinter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, Margin = new Padding(0, 2, 12, 2) };
         inputs.Controls.Add(lblPrinter,  0, 2);
         inputs.Controls.Add(_cmbPrinter, 1, 2);
-        inputs.Controls.Add(new Panel { Width = 1 }, 2, 2);
 
         Controls.Add(inputs);
 
         // === Bottom-Bar: Status + Buttons =====================================
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(0, 8, 0, 0) };
         var buttons = new FlowLayoutPanel
         {
-            Dock = DockStyle.Right,
+            Dock = DockStyle.Bottom,
             AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+            Padding = new Padding(0, 8, 0, 0)
         };
         _btnPrint = new Button
         {
-            Text = "Drucken",
+            Text = "Druckvorschau",
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(16, 6, 16, 6),
@@ -101,8 +99,7 @@ public class MainForm : Form
         _btnPrint.Click += async (_, __) => await PrintAsync();
         AcceptButton = _btnPrint;
         buttons.Controls.Add(_btnPrint);
-        bottom.Controls.Add(buttons);
-        Controls.Add(bottom);
+        Controls.Add(buttons);
 
         // Statusleiste
         var strip = new StatusStrip { Dock = DockStyle.Bottom, SizingGrip = false };
@@ -179,6 +176,37 @@ public class MainForm : Form
             var (headers, rows) = await Task.Run(() => reader.Read(excelPath, _cfg.Defaults.SheetName));
             var map = new MappingResolver(_cfg, headers);
 
+            var items = new List<PrintItem>();
+            foreach (var row in rows)
+            {
+                string get(string logical) => map.GetString(row, logical);
+
+                var artikel = get("artikelnummer");
+                if (_cfg.IgnoredArticles.Any(a => string.Equals(a, artikel, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                int copies = map.ParseCopies(get("menge"), _cfg.Defaults.CopiesIfMissing);
+                if (copies <= 0)
+                    continue;
+
+                var name   = get("text");
+                var beschr = get("beschreibung");
+                var preis  = MappingResolver.FormatPrice(get("preis"), _cfg.Defaults.DecimalSeparator ?? ",");
+                var ean    = MappingResolver.NormalizeEan(get("ean"));
+
+                items.Add(new PrintItem(artikel, name, beschr, preis, ean, copies));
+            }
+
+            var previewData = items.Select(i => new PreviewForm.PreviewItem(i.Artikel, i.Preis, i.Copies)).ToList();
+            using (var preview = new PreviewForm(previewData))
+            {
+                if (preview.ShowDialog(this) != DialogResult.OK)
+                {
+                    _status.Text = "Abgebrochen.";
+                    return;
+                }
+            }
+
             _status.Text = "Starte Druck…";
             int totalLabels = 0;
 
@@ -187,39 +215,25 @@ public class MainForm : Form
             pt.SelectPrinter(printerName);
             pt.StartPrint();
 
-            string get(string logical) => map.GetString(_currentRow!, logical);
-
-            foreach (var row in rows)
+            foreach (var item in items)
             {
-                _currentRow = row;
-
-                var artikel = get("artikelnummer");
-                var name    = get("text");
-                var beschr  = get("beschreibung");
-                var preis   = MappingResolver.FormatPrice(get("preis"), _cfg.Defaults.DecimalSeparator ?? ",");
-                var ean     = MappingResolver.NormalizeEan(get("ean"));
-
                 foreach (var kv in ti.Template.ObjectMap)
                 {
                     var value = kv.Key switch
                     {
-                        "artikelnummer" => artikel,
-                        "text"          => name,
-                        "beschreibung"  => beschr,
-                        "preis"         => preis,
-                        "ean"           => ean,
-                        _               => ""
+                        "artikelnummer" => item.Artikel,
+                        "text"          => item.Name,
+                        "beschreibung"  => item.Beschreibung,
+                        "preis"         => item.Preis,
+                        "ean"           => item.Ean,
+                        _               => "",
                     };
                     if (!string.IsNullOrEmpty(kv.Value))
                         pt.SetField(kv.Value, value);
                 }
 
-                int copies = map.ParseCopies(get("menge"), _cfg.Defaults.CopiesIfMissing);
-                if (copies > 0)
-                {
-                    pt.PrintCopies(copies);
-                    totalLabels += copies;
-                }
+                pt.PrintCopies(item.Copies);
+                totalLabels += item.Copies;
             }
 
             pt.EndPrint();
@@ -240,4 +254,12 @@ public class MainForm : Form
     {
         public override string ToString() => Template.Title;
     }
+
+    private sealed record PrintItem(
+        string Artikel,
+        string Name,
+        string Beschreibung,
+        string Preis,
+        string Ean,
+        int Copies);
 }
