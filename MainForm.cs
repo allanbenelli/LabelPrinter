@@ -129,9 +129,16 @@ public class MainForm : Form
 
     private void LoadTemplates()
     {
+        _cmbTemplate.BeginUpdate();
         _cmbTemplate.Items.Clear();
-        foreach (var t in _cfg.Templates)
+
+        foreach (var t in _cfg.Templates
+                .OrderBy(t => t.Title, StringComparer.CurrentCultureIgnoreCase))
+        {
             _cmbTemplate.Items.Add(new TemplateItem(t));
+        }
+
+        _cmbTemplate.EndUpdate();
         if (_cmbTemplate.Items.Count > 0) _cmbTemplate.SelectedIndex = 0;
     }
 

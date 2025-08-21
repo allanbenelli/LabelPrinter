@@ -42,13 +42,21 @@
             "type": "shell",
             "command": "powershell",
             "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", "${workspaceFolder}/scripts/package.ps1",
-                "-Runtime", "win-x64",
-                "-Configuration", "Release"
+                "-NoProfile","-ExecutionPolicy","Bypass",
+                "-File","${workspaceFolder}/scripts/package.ps1",
+                "-Runtime","win-x64",
+                "-Configuration","Release",
+                "-Notes","${input:notes}"
             ],
             "problemMatcher": []
             }
-    ]
+        ],
+        "inputs": [
+            {
+            "id": "notes",
+            "type": "promptString",
+            "description": "Changelog-Text für diese Version (leer = Wartungsupdate)",
+            "default": ""
+            }
+        ]
 }

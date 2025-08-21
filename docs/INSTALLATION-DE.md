@@ -8,7 +8,7 @@
 
 Downloads (offizielle Brother-Seiten):
 - b-PAC SDK/Runtime: support.brother.com → b-PAC Downloadseite. 
-- Treiber/Software für PT-E550W: support.brother.com → Modell PT-E550W.
+- Treiber/Software für PT-E550W: support.brother.com → Modell [PT-E550W](https://support.brother.com/g/b/downloadlist.aspx?c=de&lang=de&prod=e550weuk&os=10069)
 - (Optional) P-touch Editor zum Erstellen/Ändern von Vorlagen.
 
 ## 2) Installation

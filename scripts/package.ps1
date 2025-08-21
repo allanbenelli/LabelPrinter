@@ -1,14 +1,43 @@
 param(
   [string]$Runtime = "win-x64",
-  [string]$Configuration = "Release"
+  [string]$Configuration = "Release",
+  [string]$Notes = ""
 )
 
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSCommandPath
-$repo = Split-Path -Parent $root
+
+# Pfade
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo      = Split-Path -Parent $scriptDir
 Set-Location $repo
 
-# 1) Publish
+# --- Basisversion lesen (z.B. "1.0") ---
+$baseFile = Join-Path $repo "VERSION_BASE"
+$base = "1.0"
+if (Test-Path $baseFile) {
+  $base = (Get-Content $baseFile -Raw).Trim()
+}
+
+# --- naechste Patch-Version bestimmen: LabelPrinter_<base>.<N> ---
+$deliverRoot = Join-Path $repo "deliverables"
+New-Item -ItemType Directory -Force -Path $deliverRoot | Out-Null
+
+$pattern = "^LabelPrinter_$([regex]::Escape($base))\.(\d+)$"
+$patches = @()
+if (Test-Path $deliverRoot) {
+  foreach ($d in Get-ChildItem $deliverRoot -Directory -ErrorAction SilentlyContinue) {
+    if ($d.Name -match $pattern) { $patches += [int]$matches[1] }
+  }
+}
+$next = 1
+if ($patches.Count -gt 0) {
+  $next = ((($patches | Measure-Object -Maximum).Maximum) + 1)
+}
+
+$version = "$base.$next"
+$out     = Join-Path $deliverRoot ("LabelPrinter_" + $version)
+
+# --- Publish ---
 $pub = Join-Path $repo "publish\$Runtime"
 dotnet publish .\LabelPrinter.csproj -c $Configuration -r $Runtime `
   --self-contained true `
@@ -17,34 +46,56 @@ dotnet publish .\LabelPrinter.csproj -c $Configuration -r $Runtime `
   -p:EnableCompressionInSingleFile=true `
   -o $pub
 
-# 2) Zielordner erstellen
-$stamp = Get-Date -Format "yyyyMMdd_HHmm"
-$out = Join-Path $repo "deliverables\LabelPrinter_$stamp"
+# --- Ausgabeordner befuellen ---
 New-Item -ItemType Directory -Force -Path $out | Out-Null
-
-# 3) Dateien kopieren
 Copy-Item "$pub\LabelPrinter.exe" $out -Force
-Copy-Item "$pub\appsettings.labels.json" $out -Force -ErrorAction SilentlyContinue
-if (Test-Path "$pub\Templates") { Copy-Item "$pub\Templates" $out -Recurse -Force }
+if (Test-Path "$pub\appsettings.labels.json") { Copy-Item "$pub\appsettings.labels.json" $out -Force }
+if (Test-Path "$pub\Templates")               { Copy-Item "$pub\Templates"             $out -Recurse -Force }
 
-# optional: bPAC-Installer aus repo/installer/bpac -> deliverables/bpac
+# b-PAC optional beilegen
 if (Test-Path ".\installer\bpac") {
-  New-Item -ItemType Directory -Force -Path (Join-Path $out "bpac") | Out-Null
-  Copy-Item ".\installer\bpac\*.exe" (Join-Path $out "bpac") -Force -ErrorAction SilentlyContinue
+  $bpacOut = Join-Path $out "bpac"
+  New-Item -ItemType Directory -Force -Path $bpacOut | Out-Null
+  Copy-Item ".\installer\bpac\*.exe" $bpacOut -Force -ErrorAction SilentlyContinue
 }
 
-# 4) Anleitung kopieren
+# Installationsanleitung beilegen
 $docSrc = ".\docs\INSTALLATION-DE.md"
 if (Test-Path $docSrc) {
-  Copy-Item $docSrc (Join-Path $out "Installationsanleitung (DE).md") -Force
-} else {
-  # Fallback: kurze Readme erzeugen
-  @"
-# LabelPrinter – Kurzanleitung
-1) b-PAC Runtime installieren (siehe Ordner 'bpac' oder Brother-Website).
-2) LabelPrinter.exe starten.
-3) Excel wählen, Vorlage wählen, Drucker wählen, Drucken.
-"@ | Set-Content (Join-Path $out "Installationsanleitung (DE).md") -Encoding UTF8
+  Copy-Item $docSrc (Join-Path $out "INSTALLATION-DE.md") -Force
 }
 
-Write-Host "Fertig: $out"
+# Version.txt
+$version | Set-Content (Join-Path $out "VERSION.txt") -Encoding UTF8
+
+# --- Changelog aktualisieren (UTF-8, stabiler Header) ---
+$cl = Join-Path $repo "CHANGELOG.md"
+$today = Get-Date -Format "yyyy-MM-dd"
+
+# Notes ermitteln (Prompt aus VS Code Task liefert hier den Text)
+if ([string]::IsNullOrWhiteSpace($Notes)) { $notesLine = "- Wartungsupdate" } else { $notesLine = "- $Notes" }
+
+$header = "# Changelog`r`n`r`nFormat: vX.Y.Z - YYYY-MM-DD`r`n`r`n"
+
+# vorhandenen Inhalt lesen und ggf. alten Header entfernen
+$existing = ""
+if (Test-Path $cl) {
+  $existing = Get-Content $cl -Raw
+  # Entfernt am Dateianfang:
+  #   # Changelog
+  #   [leere Zeilen]
+  #   (optional) Format: vX.Y.Z - YYYY-MM-DD
+  #   [leere Zeilen]
+  $pattern = '^\s*#\s*Changelog\s*\r?\n(?:\s*Format:.*\r?\n)?\s*\r?\n'
+  $existing = [System.Text.RegularExpressions.Regex]::Replace(
+    $existing, $pattern, '', 
+    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+  )
+}
+
+$entry = "## v$version - $today`r`n$notesLine`r`n`r`n"
+$newContent = $header + $entry + $existing
+Set-Content $cl $newContent -Encoding UTF8
+Copy-Item $cl (Join-Path $out "CHANGELOG.md") -Force
+
+Write-Host ("Fertig: " + $out)
