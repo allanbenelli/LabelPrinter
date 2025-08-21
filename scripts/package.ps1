@@ -1,3 +1,4 @@
+
 param(
   [string]$Runtime = "win-x64",
   [string]$Configuration = "Release",
@@ -18,27 +19,40 @@ if (Test-Path $baseFile) {
   $base = (Get-Content $baseFile -Raw).Trim()
 }
 
-# --- naechste Patch-Version bestimmen: LabelPrinter_<base>.<N> ---
-$deliverRoot = Join-Path $repo "deliverables"
-New-Item -ItemType Directory -Force -Path $deliverRoot | Out-Null
-
-$pattern = "^LabelPrinter_$([regex]::Escape($base))\.(\d+)$"
-$patches = @()
-if (Test-Path $deliverRoot) {
-  foreach ($d in Get-ChildItem $deliverRoot -Directory -ErrorAction SilentlyContinue) {
-    if ($d.Name -match $pattern) { $patches += [int]$matches[1] }
-  }
-}
+# --- naechste Patch-Version aus CHANGELOG bestimmen ---
+$cl = Join-Path $repo "CHANGELOG.md"
 $next = 1
-if ($patches.Count -gt 0) {
-  $next = ((($patches | Measure-Object -Maximum).Maximum) + 1)
+if (Test-Path $cl) {
+  $raw = Get-Content $cl -Raw
+  # Finde Zeilen wie: "## v1.0.23 - 2025-08-21"
+  $regex = [regex]'(?im)^\s*##\s+v(?<maj>\d+)\.(?<min>\d+)\.(?<pat>\d+)\s*-'
+  $matches = $regex.Matches($raw)
+  if ($matches.Count -gt 0) {
+    $parts = $base.Split('.')
+    if ($parts.Length -ge 2) {
+      $majBase = [int]$parts[0]
+      $minBase = [int]$parts[1]
+      $patches = New-Object System.Collections.Generic.List[int]
+      foreach ($m in $matches) {
+        $maj = [int]$m.Groups['maj'].Value
+        $min = [int]$m.Groups['min'].Value
+        $pat = [int]$m.Groups['pat'].Value
+        if ($maj -eq $majBase -and $min -eq $minBase) { $patches.Add($pat) }
+      }
+      if ($patches.Count -gt 0) {
+        $max = ($patches | Measure-Object -Maximum).Maximum
+        $next = [int]$max + 1
+      }
+    }
+  }
 }
 
 $version = "$base.$next"
-$out     = Join-Path $deliverRoot ("LabelPrinter_" + $version)
+$deliverRoot = Join-Path $repo "deliverables"
+$out = Join-Path $deliverRoot ("LabelPrinter_" + $version)
 
 # --- Publish ---
-$pub = Join-Path $repo "publish\$Runtime"
+$pub = Join-Path $repo ("publish\" + $Runtime)
 dotnet publish .\LabelPrinter.csproj -c $Configuration -r $Runtime `
   --self-contained true `
   -p:PublishSingleFile=true `
@@ -47,54 +61,51 @@ dotnet publish .\LabelPrinter.csproj -c $Configuration -r $Runtime `
   -o $pub
 
 # --- Ausgabeordner befuellen ---
+New-Item -ItemType Directory -Force -Path $deliverRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+# Kerndateien
 Copy-Item "$pub\LabelPrinter.exe" $out -Force
 if (Test-Path "$pub\appsettings.labels.json") { Copy-Item "$pub\appsettings.labels.json" $out -Force }
 if (Test-Path "$pub\Templates")               { Copy-Item "$pub\Templates"             $out -Recurse -Force }
 
-# b-PAC optional beilegen
+# Dokus (mitliefern, falls vorhanden)
+if (Test-Path ".\docs\INSTALLATION-DE.md")       { Copy-Item ".\docs\INSTALLATION-DE.md"       (Join-Path $out "INSTALLATION-DE.md")       -Force }
+if (Test-Path ".\docs\ANLEITUNG-appsettings.md") { Copy-Item ".\docs\ANLEITUNG-appsettings.md" (Join-Path $out "ANLEITUNG-appsettings.md") -Force }
+
+# optional: b-PAC Installer beilegen
 if (Test-Path ".\installer\bpac") {
   $bpacOut = Join-Path $out "bpac"
   New-Item -ItemType Directory -Force -Path $bpacOut | Out-Null
   Copy-Item ".\installer\bpac\*.exe" $bpacOut -Force -ErrorAction SilentlyContinue
 }
 
-# Installationsanleitung beilegen
-$docSrc = ".\docs\INSTALLATION-DE.md"
-if (Test-Path $docSrc) {
-  Copy-Item $docSrc (Join-Path $out "INSTALLATION-DE.md") -Force
-}
-
 # Version.txt
 $version | Set-Content (Join-Path $out "VERSION.txt") -Encoding UTF8
 
-# --- Changelog aktualisieren (UTF-8, stabiler Header) ---
-$cl = Join-Path $repo "CHANGELOG.md"
+# --- CHANGELOG aktualisieren ---
 $today = Get-Date -Format "yyyy-MM-dd"
-
-# Notes ermitteln (Prompt aus VS Code Task liefert hier den Text)
 if ([string]::IsNullOrWhiteSpace($Notes)) { $notesLine = "- Wartungsupdate" } else { $notesLine = "- $Notes" }
 
+# Header (ASCII, stabil)
 $header = "# Changelog`r`n`r`nFormat: vX.Y.Z - YYYY-MM-DD`r`n`r`n"
 
-# vorhandenen Inhalt lesen und ggf. alten Header entfernen
+# Vorhandenen Inhalt lesen und Header (inkl. optionaler Format-Zeile) entfernen
 $existing = ""
 if (Test-Path $cl) {
   $existing = Get-Content $cl -Raw
-  # Entfernt am Dateianfang:
-  #   # Changelog
-  #   [leere Zeilen]
-  #   (optional) Format: vX.Y.Z - YYYY-MM-DD
-  #   [leere Zeilen]
   $pattern = '^\s*#\s*Changelog\s*\r?\n(?:\s*Format:.*\r?\n)?\s*\r?\n'
   $existing = [System.Text.RegularExpressions.Regex]::Replace(
-    $existing, $pattern, '', 
+    $existing, $pattern, '',
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
   )
 }
 
+# Neuen Eintrag bauen
 $entry = "## v$version - $today`r`n$notesLine`r`n`r`n"
 $newContent = $header + $entry + $existing
+
+# Schreiben & mitliefern
 Set-Content $cl $newContent -Encoding UTF8
 Copy-Item $cl (Join-Path $out "CHANGELOG.md") -Force
 
