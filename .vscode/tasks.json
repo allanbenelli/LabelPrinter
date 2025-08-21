@@ -36,6 +36,19 @@
                 "${workspaceFolder}/labelprinter.sln"
             ],
             "problemMatcher": "$msCompile"
-        }
+        }, 
+        {
+            "label": "package-win-x64",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/package.ps1",
+                "-Runtime", "win-x64",
+                "-Configuration", "Release"
+            ],
+            "problemMatcher": []
+            }
     ]
 }

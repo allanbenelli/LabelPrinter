@@ -35,6 +35,10 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+deliverables/
+dist/
+installer/
+LabelPrinter.sln
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
