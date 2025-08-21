@@ -2,6 +2,9 @@
 
 Format: vX.Y.Z - YYYY-MM-DD
 
+## v1.0.3 - 2025-08-22
+- Anleitung angepasst
+
 ## v1.0.2 - 2025-08-22
 - Fenster grösser + Versionsnummer in Header
 
@@ -15,6 +18,7 @@ Format: vX.Y.Z - YYYY-MM-DD
 - Templates werden sortiert angezeigt
 - Automatisierte generierung Changelog
 - Packetierung für Auslieferung
+
 
 
 
