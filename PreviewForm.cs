@@ -20,8 +20,9 @@ public sealed class PreviewForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
-        Size = new Size(500, 400);
-
+        ClientSize = new Size(1100, 700);
+        MinimumSize = new Size(900, 620);
+        
         var grid = new DataGridView
         {
             Dock = DockStyle.Fill,

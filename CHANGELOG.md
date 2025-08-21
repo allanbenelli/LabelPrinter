@@ -2,8 +2,12 @@
 
 Format: vX.Y.Z - YYYY-MM-DD
 
+## v1.0.2 - 2025-08-22
+- Fenster grösser + Versionsnummer in Header
+
 ## v1.0.1 - 2025-08-21
 - Anleitung für appsettings hinzugefügt
+- Template Etikette korrigiert
 
 ## v1.0.0 - 2025-08-21
 - Initiale Version des Changelog
@@ -11,6 +15,8 @@ Format: vX.Y.Z - YYYY-MM-DD
 - Templates werden sortiert angezeigt
 - Automatisierte generierung Changelog
 - Packetierung für Auslieferung
+
+
 
 
 

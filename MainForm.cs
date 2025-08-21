@@ -24,11 +24,13 @@ public class MainForm : Form
         // Fenster-Basics
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 10f);
-        Text = "Etikettendrucker Excel2P-Touch";
+        var baseVer = LabelPrinter.Services.VersionUtil.GetBaseVersion();
+        Text = $"Etikettendrucker Excel2P-Touch {baseVer}";
         StartPosition = FormStartPosition.CenterScreen;
         Padding = new Padding(12);
-        ClientSize = new Size(900, 320);
-        MinimumSize = new Size(760, 320);
+
+        ClientSize = new Size(1100, 520);
+        MinimumSize = new Size(900, 480);
 
         // === Inputs (oben) =====================================================
         var inputs = new TableLayoutPanel
@@ -38,6 +40,7 @@ public class MainForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 3,
             Padding = new Padding(0, 0, 0, 8)
+            
         };
         inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Label
         inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // Eingabe
@@ -87,6 +90,7 @@ public class MainForm : Form
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
             Padding = new Padding(0, 8, 0, 0)
+            
         };
         _btnPrint = new Button
         {
