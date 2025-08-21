@@ -32,10 +32,12 @@ Diese Datei steuert, **welche Etiketten-Vorlagen** (LBX) in der App zur Auswahl 
     "ean":           ["EAN", "EAN-Code", "Barcode", "EAN13"]
   },
 
+  "ignoredArticles": ["Porto03"],
+
   "defaults": {
     "sheetName": "",
     "copiesIfMissing": 1,
-    "decimalSeparator": ","
+    "decimalSeparator": "."
   }
 }
 ```
