@@ -3,6 +3,7 @@ using System.Drawing.Printing;
 using System.Text.Json;
 using System.Windows.Forms;
 using System.Linq;
+using System.IO; // <— neu
 using LabelPrinter.Models;
 using LabelPrinter.Services;
 
@@ -18,6 +19,9 @@ public class MainForm : Form
     private ToolStripStatusLabel _status = null!;
 
     private AppConfig _cfg = new();
+
+    // merkt sich die letzte gültige (vorhandene) Auswahl
+    private int _lastValidTemplateIndex = -1;
 
     public MainForm()
     {
@@ -40,7 +44,6 @@ public class MainForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 3,
             Padding = new Padding(0, 0, 0, 8)
-            
         };
         inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Label
         inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));  // Eingabe
@@ -70,7 +73,17 @@ public class MainForm : Form
 
         // Vorlage
         var lblTemplate = new Label { Text = "Vorlage:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 12, 6) };
-        _cmbTemplate = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 600, Margin = new Padding(0, 2, 12, 2) };
+        _cmbTemplate = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Width = 600,
+            Margin = new Padding(0, 2, 12, 2),
+            DrawMode = DrawMode.OwnerDrawFixed // <— neu: owner-draw
+        };
+        _cmbTemplate.DrawItem += _cmbTemplate_DrawItem;                    // <— neu
+        _cmbTemplate.SelectionChangeCommitted += _cmbTemplate_SelectionChangeCommitted; // <— neu
+
         inputs.Controls.Add(lblTemplate,  0, 1);
         inputs.Controls.Add(_cmbTemplate, 1, 1);
 
@@ -90,7 +103,6 @@ public class MainForm : Form
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
             Padding = new Padding(0, 8, 0, 0)
-            
         };
         _btnPrint = new Button
         {
@@ -136,14 +148,79 @@ public class MainForm : Form
         _cmbTemplate.BeginUpdate();
         _cmbTemplate.Items.Clear();
 
+        int firstExistingIndex = -1;
+        int idx = 0;
+
         foreach (var t in _cfg.Templates
                 .OrderBy(t => t.Title, StringComparer.CurrentCultureIgnoreCase))
         {
-            _cmbTemplate.Items.Add(new TemplateItem(t));
+            var fullPath = Path.Combine(AppContext.BaseDirectory, t.File ?? "");
+            bool exists = File.Exists(fullPath);
+
+            _cmbTemplate.Items.Add(new TemplateItem(t, exists));
+
+            if (exists && firstExistingIndex == -1)
+                firstExistingIndex = idx;
+
+            idx++;
         }
 
         _cmbTemplate.EndUpdate();
-        if (_cmbTemplate.Items.Count > 0) _cmbTemplate.SelectedIndex = 0;
+
+        if (firstExistingIndex >= 0)
+        {
+            _cmbTemplate.SelectedIndex = firstExistingIndex;
+            _lastValidTemplateIndex = firstExistingIndex;
+        }
+        else
+        {
+            _cmbTemplate.SelectedIndex = -1;
+            _lastValidTemplateIndex = -1;
+            MessageBox.Show(
+                "Es wurden keine verfügbaren Vorlagen gefunden.\n" +
+                "Bitte legen Sie die LBX-Dateien in den Templates-Ordner.",
+                "Keine Vorlagen",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void _cmbTemplate_DrawItem(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+        if (e.Index < 0) return;
+
+        var item = (TemplateItem)_cmbTemplate.Items[e.Index];
+        var fore = item.Exists ? e.ForeColor : SystemColors.GrayText;
+
+        using var b = new SolidBrush(fore);
+        e.Graphics.DrawString(item.ToString(), e.Font, b, e.Bounds);
+        e.DrawFocusRectangle();
+    }
+
+    private void _cmbTemplate_SelectionChangeCommitted(object? sender, EventArgs e)
+    {
+        if (_cmbTemplate.SelectedIndex < 0) return;
+        var item = (TemplateItem)_cmbTemplate.SelectedItem!;
+
+        if (!item.Exists)
+        {
+            MessageBox.Show(
+                "Diese Vorlage ist nicht verfügbar (LBX-Datei fehlt).\n" +
+                "Bitte wählen Sie eine vorhandene Vorlage.",
+                "Vorlage fehlt",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            if (_lastValidTemplateIndex >= 0 && _lastValidTemplateIndex < _cmbTemplate.Items.Count)
+                _cmbTemplate.SelectedIndex = _lastValidTemplateIndex;
+            else
+                _cmbTemplate.SelectedIndex = -1;
+
+            return;
+        }
+
+        _lastValidTemplateIndex = _cmbTemplate.SelectedIndex;
     }
 
     private void LoadPrinters()
@@ -180,6 +257,10 @@ public class MainForm : Form
 
             if (_cmbTemplate.SelectedItem is not TemplateItem ti)
                 throw new InvalidOperationException("Bitte eine LBX-Vorlage wählen.");
+
+            // Sicherheitscheck: existiert die ausgewählte Vorlage?
+            if (!ti.Exists)
+                throw new FileNotFoundException("LBX-Vorlage nicht gefunden.", ti.Template.File);
 
             var printerName = _cmbPrinter.SelectedItem?.ToString();
 
@@ -234,7 +315,7 @@ public class MainForm : Form
             {
                 if (item.Copies <= 0)
                     continue;
-                    
+
                 foreach (var kv in ti.Template.ObjectMap)
                 {
                     var value = kv.Key switch
@@ -268,7 +349,7 @@ public class MainForm : Form
         }
     }
 
-    private sealed record TemplateItem(TemplateConfig Template)
+    private sealed record TemplateItem(TemplateConfig Template, bool Exists)
     {
         public override string ToString() => Template.Title;
     }
