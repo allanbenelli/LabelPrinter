@@ -40,7 +40,17 @@ public sealed class PreviewForm : Form
 
         var btnPrint = new Button { Text = "Drucken", DialogResult = DialogResult.OK, AutoSize = true, Margin = new Padding(12,0,0,0) };
         btnPrint.Click += (_, __) => grid.EndEdit();
+
         var btnCancel = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, AutoSize = true };
+
+        var btnAllOne = new Button { Text = "Alle Mengen = 1", AutoSize = true };
+        btnAllOne.Click += (_, __) =>
+        {
+            grid.EndEdit();
+            foreach (var it in Items)
+                it.Menge = 1;
+            grid.Refresh();
+        };
 
         var buttons = new FlowLayoutPanel
         {
@@ -49,8 +59,11 @@ public sealed class PreviewForm : Form
             AutoSize = true,
             Padding = new Padding(12)
         };
-        buttons.Controls.Add(btnPrint);
-        buttons.Controls.Add(btnCancel);
+
+        // Reihenfolge wichtig wegen RightToLeft:
+        buttons.Controls.Add(btnPrint);   // rechts außen
+        buttons.Controls.Add(btnCancel);  // daneben links
+        buttons.Controls.Add(btnAllOne);  // ganz links
 
         Controls.Add(grid);
         Controls.Add(buttons);
@@ -73,4 +86,3 @@ public sealed class PreviewForm : Form
         public int Menge { get; set; }
     }
 }
-
