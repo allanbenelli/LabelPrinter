@@ -2,6 +2,9 @@
 
 Format: vX.Y.Z - YYYY-MM-DD
 
+## v1.0.4 - 2025-08-23
+- hinzufügen von Alle Mengen = 1 button und prüfe ob Etiketten vorhanden
+
 ## v1.0.3 - 2025-08-22
 - Anleitung angepasst
 
@@ -18,6 +21,7 @@ Format: vX.Y.Z - YYYY-MM-DD
 - Templates werden sortiert angezeigt
 - Automatisierte generierung Changelog
 - Packetierung für Auslieferung
+
 
 
 
