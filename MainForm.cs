@@ -3,7 +3,7 @@ using System.Drawing.Printing;
 using System.Text.Json;
 using System.Windows.Forms;
 using System.Linq;
-using System.IO; // <— neu
+using System.IO; 
 using LabelPrinter.Models;
 using LabelPrinter.Services;
 
@@ -16,6 +16,7 @@ public class MainForm : Form
     private ComboBox _cmbPrinter = null!;
     private Button _btnBrowse = null!;
     private Button _btnPrint = null!;
+    private Button _btnSaveDefaults = null!;
     private ToolStripStatusLabel _status = null!;
 
     private AppConfig _cfg = new();
@@ -93,8 +94,19 @@ public class MainForm : Form
         inputs.Controls.Add(lblPrinter,  0, 2);
         inputs.Controls.Add(_cmbPrinter, 1, 2);
 
-        Controls.Add(inputs);
+        // default values
+        _btnSaveDefaults = new Button
+        {
+            Text = "Als Standard speichern",
+            AutoSize = true
+        };
+        _btnSaveDefaults.Click += (_, _) => SaveDefaults();
 
+        inputs.Controls.Add(_btnSaveDefaults, 2, 2);
+
+
+
+        Controls.Add(inputs);
         // === Bottom-Bar: Status + Buttons =====================================
         var buttons = new FlowLayoutPanel
         {
@@ -129,8 +141,36 @@ public class MainForm : Form
             LoadConfig();
             LoadTemplates();
             LoadPrinters();
+            LoadDefaults();
         };
     }
+
+    private void SaveDefaults()
+    {
+        if (_cmbTemplate.SelectedItem is TemplateItem ti)
+        {
+            _cfg.DefaultTemplate = ti.Template.Title; 
+        }
+
+        if (_cmbPrinter.SelectedItem is string printer)
+        {
+            _cfg.DefaultPrinter = printer;
+        }
+
+        SaveConfig();
+        _status.Text = "Standard gespeichert ✔";
+    }
+
+    private void SaveConfig()
+{
+    var path = Path.Combine(AppContext.BaseDirectory, "appsettings.labels.json");
+    var json = JsonSerializer.Serialize(_cfg, new JsonSerializerOptions
+    {
+        WriteIndented = true
+    });
+    File.WriteAllText(path, json);
+}
+
 
     private void LoadConfig()
     {
@@ -184,6 +224,37 @@ public class MainForm : Form
                 MessageBoxIcon.Warning);
         }
     }
+
+    private void LoadDefaults()
+    {
+        if (!string.IsNullOrEmpty(_cfg.DefaultTemplate))
+        {
+            foreach (TemplateItem item in _cmbTemplate.Items)
+            {
+                if (string.Equals(item.Template.Title, _cfg.DefaultTemplate,
+                                StringComparison.OrdinalIgnoreCase))
+                {
+                    _cmbTemplate.SelectedItem = item;
+                    break;
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_cfg.DefaultPrinter))
+        {
+            foreach (string printer in _cmbPrinter.Items)
+            {
+                if (string.Equals(printer, _cfg.DefaultPrinter,
+                                StringComparison.OrdinalIgnoreCase))
+                {
+                    _cmbPrinter.SelectedItem = printer;
+                    break;
+                }
+            }
+        }
+    }
+
+
 
     private void _cmbTemplate_DrawItem(object? sender, DrawItemEventArgs e)
     {

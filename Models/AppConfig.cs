@@ -6,6 +6,8 @@ public sealed class AppConfig
     public Dictionary<string, List<string>> ColumnAliases { get; set; } = new();
     public Defaults Defaults { get; set; } = new();
     public List<string> IgnoredArticles { get; set; } = new();
+    public string? DefaultTemplate { get; set; }
+    public string? DefaultPrinter { get; set; }
 }
 
 public sealed class TemplateConfig
