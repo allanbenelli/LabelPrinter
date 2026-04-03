@@ -358,7 +358,9 @@ public class MainForm : Form
                 items.Add(new PrintItem(artikel, name, beschr, preis, ean, copies));
             }
 
-            var previewData = items.Select(i => new PreviewForm.PreviewItem(i.Artikel, i.Preis, i.Copies)).ToList();
+            var previewData = items
+                .Select(i => new PreviewForm.PreviewItem(i.Artikel, i.Name, i.Ean, i.Preis, i.Copies))
+                .ToList();
             using (var preview = new PreviewForm(previewData))
             {
                 if (preview.ShowDialog(this) != DialogResult.OK)
