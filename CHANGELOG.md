@@ -2,6 +2,10 @@
 
 Format: vX.Y.Z - YYYY-MM-DD
 
+## v1.0.6 - 2026-04-03
+- Text und EAN anzeigen in Vorschau
+- anzahl druck erzeugnisse angepasst
+
 ## v1.0.5 - 2025-09-12
 - neuer 'Als Standard Speichern' button hinzugefügt
 
@@ -24,6 +28,7 @@ Format: vX.Y.Z - YYYY-MM-DD
 - Templates werden sortiert angezeigt
 - Automatisierte generierung Changelog
 - Packetierung für Auslieferung
+
 
 
 
